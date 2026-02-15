@@ -1,0 +1,69 @@
+name: Code Quality
+
+on:
+  push:
+    branches:
+      - 'master'
+      - 'develop'
+      - 'release/**'
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  sonarcloud:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # https://github.com/actions/checkout/releases/tag/v4.1.1
+        with:
+          fetch-depth: 0
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # https://github.com/SonarSource/sonarqube-scan-action/releases/tag/v6.0.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: SonarQube Quality Gate check
+        uses: SonarSource/sonarqube-quality-gate-action@cf038b0e0cdecfa9e56c198bbb7d21d751d62c3b # https://github.com/SonarSource/sonarqube-quality-gate-action/releases/tag/v1.2.0
+        # Force to fail step after specific time
+        timeout-minutes: 1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  codeql:
+      name: CodeQL
+      runs-on: 'ubuntu-latest'
+      timeout-minutes: 60
+      permissions:
+        security-events: write
+        packages: read
+        actions: read
+        contents: read
+
+      strategy:
+        fail-fast: false
+        matrix:
+          language: [javascript-typescript]
+      steps:
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # https://github.com/actions/checkout/releases/tag/v4.1.7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          config-file: .github/codeql/codeql-config.yml
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
+  fossa-scan:
+      name: FOSSA Scan
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # https://github.com/actions/checkout/releases/tag/v4.1.7
+        - uses: fossas/fossa-action@47ef11b1e1e3812e88dae436ccbd2d0cbd1adab0 # https://github.com/fossas/fossa-action/releases/tag/v1.3.3
+          with:
+            api-key: ${{secrets.FOSSA_API_KEY}}

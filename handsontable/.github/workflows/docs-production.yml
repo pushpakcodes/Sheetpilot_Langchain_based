@@ -1,0 +1,106 @@
+name: Docs Production Deployment
+
+env:
+  GHA_DOCKER_TAG: docker.pkg.github.com/${{ github.repository }}/handsontable-documentation
+
+on:
+  push:
+    branches:
+      - 'prod-docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: ./docs/
+
+jobs:
+  docker:
+    name: Build and push Docker image
+    if: ${{ github.ref != 'refs/heads/prod-docs/latest' }} # Exclude the prod-docs-latest branch from triggering the workflow
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # https://github.com/actions/checkout/releases/tag/v4.1.1
+
+      - name: Use Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # https://github.com/actions/setup-node/releases/tag/v4.4.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+          cache-dependency-path: docs/package-lock.json
+
+      - uses: actions/github-script@d556feaca394842dc55e4734bf3bb9f685482fa0 # https://github.com/actions/github-script/releases/tag/v6.3.3
+        id: get-docs-version
+        with:
+          script: return context.ref.match(/^refs\/heads\/prod\-docs\/(\d+\.\d+)$/)[1] ?? '';
+          result-encoding: string
+
+      - name: Validate Docs version
+        run: if [ -z "${{steps.get-docs-version.outputs.result}}" ]; then echo "Docs version is empty"; exit 1; fi
+
+      - name: Docker login into GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login -u ${GITHUB_ACTOR} --password-stdin https://docker.pkg.github.com
+
+      - name: Dependencies
+        run: |
+          npm ci
+
+      - name: Docker build
+        run: |
+          npm run docs:docker:build:production
+
+      - name: Test examples
+        run: |
+          npm run docs:test:example-checker
+
+      - name: Docker tags
+        run: |
+          docker tag docs-md:production $GHA_DOCKER_TAG":v${{steps.get-docs-version.outputs.result}}"
+          docker tag docs-md:production $GHA_DOCKER_TAG":v${{steps.get-docs-version.outputs.result}}-${{ github.sha }}"
+
+      - name: Docker push production into GHCR
+        run: |
+          docker push $GHA_DOCKER_TAG":v${{steps.get-docs-version.outputs.result}}"
+
+      - name: Docker push SHA tagged into GHCR
+        run: |
+          docker push $GHA_DOCKER_TAG":v${{steps.get-docs-version.outputs.result}}-${{ github.sha }}"
+
+      - name: Build and deploy the production to Netlify (from Docker images)
+        run: |
+          cd netlify
+          mkdir -p docs/docs
+          ./build_current_version.sh
+
+      - name: Publish production to Netlify
+        uses: nick-fields/retry@v3
+        with:
+          timeout_seconds: 1600
+          max_attempts: 3
+          retry_on: error
+          command: |
+            cd docs
+            cd netlify
+            npm install netlify-cli -g
+            netlify deploy --prod --build --context production
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_PREVIEW_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_PROD_SITE_ID }}
+
+      - name: Algolia crawler start
+        env: 
+          crawler-name: Github Crawler 
+          crawler-id: 8062e3d3-ea11-422a-a31a-3b8003bef6f6
+          crawler-user-id: 61f462d3-fa0d-465f-8fc1-e39231615539
+          crawler-api-key: ${{ secrets.CRAWLER_API_KEY }}
+          site-url: 'https://handsontable.com'
+        run: |
+          wget --method POST \
+            --auth-no-challenge \
+            --user='${{ env.crawler-user-id }}' \
+            --password='${{ env.crawler-api-key}}'  \
+            'https://crawler.algolia.com/api/1/crawlers/${{ env.crawler-id }}/reindex'

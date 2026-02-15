@@ -1,0 +1,47 @@
+.handsontable td .progressBar {
+  background: #37bc6c;
+  height: 10px;
+}
+
+.handsontable td.star {
+  color: #fcb515;
+}
+
+.ht-wrapper .handsontable .htCore tr.selected td {
+  background: #edf3fd;
+}
+
+.ht-theme-main-dark .ht-wrapper.handsontable .htCore tr.selected td {
+  background: #081b3d;
+}
+
+.ht-theme-horizon-dark .ht-wrapper.handsontable .htCore tr.selected td {
+  background: #3a2901;
+}
+
+.handsontable .green {
+  background: #37bc6c;
+  font-weight: bold;
+}
+
+.handsontable .orange {
+  background: #fcb515;
+  font-weight: bold;
+}
+
+.btn {
+  padding: 20px;
+  font: 1.4em sans-serif;
+}
+[data-color="green"] {
+  background: #37bc6c;
+}
+[data-color="orange"] {
+  background: #fcb515;
+}
+
+.handsontable .ht_nestingParent,
+.handsontable .ht_nestingParent ~ td {
+  background: #B5B5B5;
+  color: #222;
+}

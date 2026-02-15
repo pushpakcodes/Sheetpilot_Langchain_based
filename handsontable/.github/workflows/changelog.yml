@@ -1,0 +1,47 @@
+# This workflow asserts that new changelog entries get added within pull requests.
+# See `/.changelogs/README.md` for more information.
+
+name: Changelog
+
+on:
+  pull_request:
+    types:
+      # When new commits get pushed to the associated PR
+      - synchronize
+
+      # When a PR gets first opened
+      - opened
+
+      # When a PR gets edited, as in the title, body or the base branch gets changed
+      - edited
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check the changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # https://github.com/actions/checkout/releases/tag/v4.1.1
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        name: Install pnpm
+
+      - name: Use Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # https://github.com/actions/setup-node/releases/tag/v4.4.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Assert that a new changelog was added, or that the check is skipped
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/check-changelog
+
+      - name: Check that all changelogs are valid
+        run: bin/changelog consume --date 2050-01-01 --dry-run

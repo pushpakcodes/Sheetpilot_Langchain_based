@@ -1,0 +1,14 @@
+{
+  "env": {
+    "test": {
+      "presets": [
+        "@babel/env",
+        "@babel/preset-typescript"
+      ],
+      "plugins": [
+        "@babel/transform-runtime",
+        ["@babel/plugin-proposal-decorators", { "legacy": true }]
+      ]
+    }
+  }
+}
